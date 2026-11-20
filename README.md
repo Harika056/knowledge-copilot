@@ -1,5 +1,11 @@
 # Knowledge Copilot
 
+**Live demo:** https://knowledge-copilot-2n0m.onrender.com (free tier: the first load can take about a minute)
+
+| Member asks | Member is refused | Admin is allowed |
+|---|---|---|
+| ![](docs/images/01-member-backups.png) | ![](docs/images/02-member-refused.png) | ![](docs/images/03-admin-restricted.png) |
+
 Question answering over a company's documents **and** its database, built the way an enterprise deployment needs it:
 answers cite their sources, users only see what their role allows, the model's SQL is checked before it runs, and every
 change to retrieval is measured on a golden question set.
@@ -61,13 +67,12 @@ Capture the images for a post with `python scripts/screenshots.py` (see `docs/PU
 | **PgVectorStore on real PostgreSQL 16 + pgvector 0.6** | 9 integration tests (`TEST_DATABASE_URL=... pytest`), incl. parity with the in-memory store on the golden set. They found a real bug: Postgres full-text search ANDed every word, so natural questions returned nothing (keyword hit@4 = 0.0). Fixed with OR semantics. |
 | **Real corpus (Kubernetes docs, 189 files, 3,018 chunks)** | 450 role-based queries: **0** restricted/internal chunks leaked to lower roles; retrieval p50 25 ms / p95 40 ms on local Postgres (offline embeddings); filtered HNSW recall@10 = 0.999 vs exact search |
 | Idle-connection drops (serverless Postgres) | store reconnects transparently; tested by killing the live connection on real Postgres |
-| Image layout | the Docker layout was simulated (fresh non-editable install, run as the container would). The `docker build` and the Cloud Run deploy themselves were not run |
+| Docker image + hosted deploy | built from the `Dockerfile` and deployed on Render's free tier with Neon Postgres (pgvector); the live demo above runs it. The Cloud Run script and docker-compose were not run |
 | Gemini adapters | tested against the SDK's own response types (field names, batching, normalisation, token usage) |
 | Relevance cutoff (`MIN_SCORE`) | on that corpus, `MIN_SCORE=1.0` kept 98% of answerable questions and refused 5 of 6 questions whose only sources were restricted. **Small sample, lexically easy questions: tune on your own golden set.** |
 
-**Not verified (no network access to Google from where this was built):** live calls to Gemini/Vertex AI
-(`copilot check` does this for you), the Docker image build / docker-compose, and the Cloud Run deploy.
-Model names are configurable (`EMBED_MODEL`, `CHAT_MODEL`) because they change over time.
+**Verified live (Nov 2026):** Gemini embeddings and chat (`copilot check`), Neon Postgres + pgvector, role-based answers on the hosted demo.
+**Not verified:** the Cloud Run script, docker-compose, and evaluation numbers on a Gemini run. Model names are configurable (`EMBED_MODEL`, `CHAT_MODEL`) because they change over time.
 
 ## Security design (what to say in an interview)
 - **Access is enforced inside the retrieval query**, for both vector and keyword search, not by filtering afterwards:
