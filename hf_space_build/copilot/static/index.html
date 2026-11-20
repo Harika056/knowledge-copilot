@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge Copilot</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#14181f; --mute:#5b6472; --line:#e3e6eb; --accent:#2457d6; --accent-ink:#fff;
+          --pub:#0f7b4a; --pub-bg:#e4f5ec; --int:#8a5a00; --int-bg:#fff1d6; --res:#a31d2b; --res-bg:#fde7ea; --code:#f0f2f6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1218; --card:#171b23; --ink:#e8ebf0; --mute:#9aa3b2; --line:#2a303c;
+          --accent:#6b93ff; --accent-ink:#0b1020; --pub:#5fd49b; --pub-bg:#12342a; --int:#f0c26a; --int-bg:#3a2d10;
+          --res:#ff8a98; --res-bg:#3d1820; --code:#1d222c; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:880px; margin:0 auto; padding:24px 16px 64px; }
+  header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; }
+  h1 { font-size:22px; margin:0; letter-spacing:-.2px; }
+  .sub { color:var(--mute); font-size:13px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
+  .roles { display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .roles button { border:0; background:transparent; color:var(--mute); padding:8px 14px; font:inherit; cursor:pointer; }
+  .roles button[aria-pressed="true"] { background:var(--accent); color:var(--accent-ink); font-weight:600; }
+  .roles button:disabled { opacity:.4; cursor:not-allowed; }
+  form { display:flex; gap:8px; }
+  input[type=text] { flex:1; padding:11px 12px; border:1px solid var(--line); border-radius:9px; background:var(--bg); color:var(--ink); font:inherit; }
+  input[type=text]:focus-visible, button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .ask { background:var(--accent); color:var(--accent-ink); border:0; border-radius:9px; padding:0 20px; font:inherit; font-weight:600; cursor:pointer; }
+  .ask:disabled { opacity:.6; cursor:wait; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chip { border:1px solid var(--line); background:transparent; color:var(--mute); border-radius:999px; padding:4px 11px; font-size:12.5px; cursor:pointer; }
+  .chip:hover { color:var(--ink); border-color:var(--mute); }
+  .answer { font-size:17px; line-height:1.5; margin:0 0 10px; white-space:pre-wrap; }
+  .meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .pill { font-size:12px; padding:3px 9px; border-radius:999px; background:var(--code); color:var(--mute); font-variant-numeric:tabular-nums; }
+  .pill b { color:var(--ink); font-weight:600; }
+  .tag { font-size:11.5px; font-weight:600; padding:2px 8px; border-radius:6px; text-transform:uppercase; letter-spacing:.4px; }
+  .tag.public { background:var(--pub-bg); color:var(--pub); } .tag.internal { background:var(--int-bg); color:var(--int); } .tag.restricted { background:var(--res-bg); color:var(--res); }
+  .cite { border-top:1px solid var(--line); padding:10px 0; } .cite:first-of-type { border-top:0; }
+  .cite .top { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .cite .src { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
+  .cite .snip { color:var(--mute); font-size:13px; margin:4px 0 0; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:var(--mute); margin:0 0 6px; font-weight:600; }
+  pre { background:var(--code); border-radius:8px; padding:10px 12px; white-space:pre-wrap; word-break:break-word; font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace; margin:6px 0; }
+  table { border-collapse:collapse; width:100%; font-size:13px; } th,td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); }
+  .err { color:var(--res); } .hidden { display:none; }
+  .token { margin-top:10px; font-size:13px; } .token input { width:100%; margin-top:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>Knowledge Copilot</h1><div class="sub" id="status">connecting…</div></div>
+    <div class="roles" id="roles" role="group" aria-label="Acting as role"></div>
+  </header>
+
+  <div class="card">
+    <form id="form"><input id="q" type="text" placeholder="Ask about the documents or the sales data…" autocomplete="off" aria-label="Question" required maxlength="1000">
+      <button class="ask" id="go" type="submit">Ask</button></form>
+    <div class="chips" id="chips"></div>
+    <div class="token hidden" id="tokenBox"><label for="tok">Demo login is off. Paste a bearer token:</label><input id="tok" type="text" placeholder="eyJ…"></div>
+  </div>
+
+  <div id="out" aria-live="polite"></div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+let role = null, tokens = {}, cfg = {};
+const SAMPLES = {
+  docs: ["How often are backups taken?", "What is the L4 engineer salary band?", "What must happen within 10 minutes of a Sev1?"],
+  data: ["How many orders were PAID?", "What is the total order amount by region?"]
+};
+
+async function getToken(r) {
+  if (cfg.demo_roles.length) {
+    if (!tokens[r]) { const res = await fetch("/demo/token?role=" + r); if (!res.ok) throw new Error("demo login unavailable for " + r); tokens[r] = (await res.json()).token; }
+    return tokens[r];
+  }
+  const t = $("tok").value.trim(); if (!t) throw new Error("Paste a bearer token first."); return t;
+}
+
+function setRole(r) {
+  role = r;
+  document.querySelectorAll("#roles button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === r)));
+}
+
+async function init() {
+  cfg = await (await fetch("/config")).json();
+  $("status").textContent = `${cfg.chunks.toLocaleString()} chunks indexed · model: ${cfg.provider} · embeddings: ${cfg.embedder}`;
+  const roles = ["MEMBER", "MANAGER", "ADMIN"];
+  roles.forEach((r) => { const b = el("button", "", r[0] + r.slice(1).toLowerCase()); b.type = "button"; b.dataset.role = r;
+    b.disabled = cfg.demo_roles.length > 0 && !cfg.demo_roles.includes(r); b.onclick = () => setRole(r); $("roles").appendChild(b); });
+  setRole(cfg.demo_roles.length ? cfg.demo_roles[0] : "MEMBER");
+  if (!cfg.demo_roles.length) $("tokenBox").classList.remove("hidden");
+  [...SAMPLES.docs, ...SAMPLES.data].forEach((s) => { const c = el("button", "chip", s); c.type = "button"; c.onclick = () => { $("q").value = s; $("form").requestSubmit(); }; $("chips").appendChild(c); });
+}
+
+function tag(acl) { return el("span", "tag " + acl, acl); }
+function pill(label, value) { const p = el("span", "pill", label + " "); p.appendChild(el("b", "", value)); return p; }
+
+function render(a, r, ms) {
+  const out = $("out"); out.replaceChildren();
+  const card = el("div", "card");
+  card.appendChild(el("p", "answer", a.text));
+  const meta = el("div", "meta");
+  meta.appendChild(pill("as", r));
+  meta.appendChild(pill("route", a.route));
+  meta.appendChild(pill("total", (a.timings_ms.total ?? ms).toFixed(0) + " ms"));
+  if (a.timings_ms.generate !== undefined) meta.appendChild(pill("generate", a.timings_ms.generate.toFixed(0) + " ms"));
+  if (a.timings_ms.vector_search !== undefined) meta.appendChild(pill("retrieval", ((a.timings_ms.embed || 0) + (a.timings_ms.vector_search || 0) + (a.timings_ms.keyword_search || 0) + (a.timings_ms.rerank || 0)).toFixed(0) + " ms"));
+  meta.appendChild(pill("tokens", `${a.usage.prompt_tokens} in / ${a.usage.completion_tokens} out`));
+  meta.appendChild(pill("cost", "$" + a.cost_usd.toFixed(6)));
+  card.appendChild(meta); out.appendChild(card);
+
+  if (a.sql) {
+    const c = el("div", "card"); c.appendChild(el("h2", "", "SQL that passed the safety checks (read-only)"));
+    c.appendChild(el("pre", "", a.sql));
+    if (a.rows && a.rows.length) {
+      const t = el("table"), cols = Object.keys(a.rows[0]), head = el("tr");
+      cols.forEach((k) => head.appendChild(el("th", "", k))); t.appendChild(head);
+      a.rows.slice(0, 8).forEach((row) => { const tr = el("tr"); cols.forEach((k) => tr.appendChild(el("td", "", String(row[k])))); t.appendChild(tr); });
+      c.appendChild(t);
+    }
+    out.appendChild(c);
+  }
+  if (a.citations.length) {
+    const c = el("div", "card"); c.appendChild(el("h2", "", "Sources (only documents this role may read)"));
+    a.citations.forEach((x) => {
+      const d = el("div", "cite"), top = el("div", "top");
+      top.appendChild(el("span", "", "[" + x.n + "]")); top.appendChild(el("span", "src", x.source)); top.appendChild(tag(x.acl));
+      top.appendChild(el("span", "pill", "score " + x.score));
+      d.appendChild(top); d.appendChild(el("p", "snip", x.snippet)); c.appendChild(d);
+    });
+    out.appendChild(c);
+  }
+}
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const go = $("go"), q = $("q").value.trim(); if (!q) return;
+  go.disabled = true; $("out").replaceChildren(el("div", "card sub", "Thinking…"));
+  const t0 = performance.now();
+  try {
+    const res = await fetch("/ask", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + (await getToken(role)) }, body: JSON.stringify({ question: q }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "HTTP " + res.status);
+    render(await res.json(), role, performance.now() - t0);
+  } catch (err) { $("out").replaceChildren(el("div", "card err", String(err.message || err))); }
+  finally { go.disabled = false; }
+});
+init().catch((e) => { $("status").textContent = "could not reach the API: " + e.message; });
+</script>
+</body>
+</html>

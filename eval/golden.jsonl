@@ -1,0 +1,14 @@
+{"question": "How much is the Business tier each month?", "expected_source": "public/pricing.md"}
+{"question": "Which plan comes with a dedicated account manager?", "expected_source": "public/pricing.md"}
+{"question": "When can I reach the support team and how fast do they reply?", "expected_source": "public/support.md"}
+{"question": "What email address do I use to ask for help?", "expected_source": "public/support.md"}
+{"question": "Which encryption standard protects stored customer data?", "expected_source": "public/security.md"}
+{"question": "How often are backups taken and how long are they retained?", "expected_source": "public/security.md"}
+{"question": "Where can customers keep their data geographically?", "expected_source": "public/security.md"}
+{"question": "How soon must new joiners complete security training?", "expected_source": "internal/onboarding.md"}
+{"question": "What must happen within 10 minutes of a Sev1 incident?", "expected_source": "internal/incident-process.md"}
+{"question": "How long do we have to write a postmortem?", "expected_source": "internal/incident-process.md"}
+{"question": "What is the nightly hotel cap for business travel?", "expected_source": "internal/expense-policy.md"}
+{"question": "Who must sign off on spending over 50000 rupees?", "expected_source": "internal/expense-policy.md"}
+{"question": "What is the pay range for an L4 engineer?", "expected_source": "restricted/salary-bands.md"}
+{"question": "Which company are we planning to buy and what is the spending limit?", "expected_source": "restricted/acquisition-plan.md"}
