@@ -18,7 +18,8 @@ class Settings:
     gcp_project: str | None = field(default_factory=lambda: os.environ.get("GOOGLE_CLOUD_PROJECT"))
     gcp_location: str = field(default_factory=lambda: os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"))
     embed_model: str = field(default_factory=lambda: os.environ.get("EMBED_MODEL", "gemini-embedding-001"))
-    chat_model: str = field(default_factory=lambda: os.environ.get("CHAT_MODEL", "gemini-2.5-flash"))
+    chat_model: str = field(default_factory=lambda: os.environ.get("CHAT_MODEL", "gemini-3.5-flash"))
+    chat_fallbacks: str = field(default_factory=lambda: os.environ.get("CHAT_FALLBACK_MODELS", "gemini-3.5-flash-lite,gemini-3.6-flash"))
     database_url: str | None = field(default_factory=lambda: os.environ.get("DATABASE_URL"))  # pgvector; None = in-memory
     # Hits scoring below this are dropped; if none remain the answer is "not found" (no LLM call). 0 = off.
     # The score scale depends on the retrieval mode (rerank ~0-2, RRF ~0.01-0.03, cosine 0-1): tune on your golden set.

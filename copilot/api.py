@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 from dataclasses import asdict
 from pathlib import Path
 
@@ -50,6 +51,9 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
 
 
+log = logging.getLogger("copilot")
+
+
 def create_app(copilot: Copilot, secret: str, docs_root: str, demo_roles: tuple = (), rate_limit_per_min: int = 0, daily_cap: int = 0) -> FastAPI:
     """demo_roles: roles the web UI may request a token for via /demo/token. Empty (default) = endpoint disabled."""
     app = FastAPI(title="Knowledge Copilot", version="0.1.0")
@@ -88,7 +92,13 @@ def create_app(copilot: Copilot, secret: str, docs_root: str, demo_roles: tuple 
     def ask(req: AskRequest, request: Request, authorization: str | None = Header(default=None)):
         c = claims(authorization)
         limiter.check(client_id(request))
-        return asdict(copilot.ask(req.question, c["role"]))
+        try:
+            return asdict(copilot.ask(req.question, c["role"]))
+        except HTTPException:
+            raise
+        except Exception as e:  # show a readable reason in the UI and the logs instead of a bare "HTTP 500"
+            log.exception("ask failed")
+            raise HTTPException(502, f"The answer step failed: {e.__class__.__name__}: {str(e)[:300]}")
 
     @app.post("/ingest")
     def ingest(authorization: str | None = Header(default=None)):

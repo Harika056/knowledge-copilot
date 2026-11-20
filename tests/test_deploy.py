@@ -113,3 +113,58 @@ def test_store_reconnects_after_the_server_kills_its_connection():
     finally:
         with psycopg.connect(DSN, autocommit=True) as admin:
             admin.execute("DROP TABLE IF EXISTS copilot_test_reconnect")
+
+
+def test_ask_failure_is_readable_not_bare_500():
+    from fastapi.testclient import TestClient
+    from copilot.api import create_app
+    from copilot.auth import create_token as issue_token
+
+    class Boom:
+        store = type("S", (), {"count": lambda self: 0})()
+        def ask(self, q, role): raise RuntimeError("gemini exploded")
+    app = create_app(Boom(), "x" * 40, ".", demo_roles=())
+    tok = issue_token("u", "MEMBER", "x" * 40)
+    r = TestClient(app, raise_server_exceptions=False).post("/ask", json={"question": "hi"}, headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 502 and "gemini exploded" in r.json()["detail"]
+
+
+class _Err(Exception):
+    def __init__(self, code): super().__init__(f"{code} UNAVAILABLE"); self.code = code
+
+
+def _fake_client(behaviour):
+    calls = []
+    class M:
+        def generate_content(self, model, contents, config):
+            calls.append(model)
+            r = behaviour(model)
+            if isinstance(r, Exception): raise r
+            return type("R", (), {"text": r, "usage_metadata": type("U", (), {"prompt_token_count": 1, "candidate_token_count": 1, "candidates_token_count": 1})()})()
+    return type("C", (), {"models": M()})(), calls
+
+
+def test_overloaded_model_retries_then_falls_back():
+    from copilot.llm import GeminiLLM
+    client, calls = _fake_client(lambda m: _Err(503) if m == "big" else "answer from small")
+    llm = GeminiLLM(client, "big", ("small",), sleep=lambda s: None)
+    text, _ = llm.generate("q")
+    assert text == "answer from small" and calls == ["big", "big", "small"] and llm.name == "small"
+
+
+def test_real_errors_are_not_hidden_by_fallback():
+    import pytest
+    from copilot.llm import GeminiLLM
+    client, calls = _fake_client(lambda m: _Err(404))
+    with pytest.raises(_Err):
+        GeminiLLM(client, "big", ("small",), sleep=lambda s: None).generate("q")
+    assert calls == ["big"]
+
+
+def test_all_models_overloaded_raises():
+    import pytest
+    from copilot.llm import GeminiLLM
+    client, calls = _fake_client(lambda m: _Err(503))
+    with pytest.raises(_Err):
+        GeminiLLM(client, "a", ("b",), sleep=lambda s: None).generate("q")
+    assert calls == ["a", "a", "b", "b"]

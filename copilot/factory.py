@@ -10,7 +10,7 @@ from .store import MemoryStore, PgVectorStore
 def build_components(s: Settings):
     if s.provider == "gemini":
         client = make_gemini_client(s.gemini_api_key, s.gcp_project, s.gcp_location)
-        embedder, llm = GeminiEmbedder(client, s.embed_model), GeminiLLM(client, s.chat_model)
+        embedder, llm = GeminiEmbedder(client, s.embed_model), GeminiLLM(client, s.chat_model, tuple(m.strip() for m in s.chat_fallbacks.split(",") if m.strip()))
     elif s.provider == "offline":
         embedder, llm = HashEmbedder(), OfflineLLM()
     else:
